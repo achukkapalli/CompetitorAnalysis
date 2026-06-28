@@ -7,3 +7,4 @@ npm-debug.log
 .system_generated/
 reports/report_*.html
 competitor_analysis_report.html
+.env
