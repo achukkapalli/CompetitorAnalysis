@@ -17,6 +17,11 @@ const workflowFilePath = path.join(__dirname, 'existing_workflow.json');
 const n8nCliPath = 'C:\\Users\\aishw\\AppData\\Roaming\\npm\\node_modules\\n8n\\bin\\n8n';
 const reportsDir = path.join(__dirname, 'reports');
 
+// Determine execution command based on OS platform
+const n8nCommand = process.platform === 'win32'
+  ? `node "${n8nCliPath}" execute --id=P4bBNPzkRmQCXVHl`
+  : `n8n execute --id=P4bBNPzkRmQCXVHl`;
+
 // Create reports directory if it doesn't exist
 if (!fs.existsSync(reportsDir)) {
   fs.mkdirSync(reportsDir);
@@ -189,7 +194,7 @@ app.post('/api/run', (req, res) => {
     N8N_RESTRICT_FILE_ACCESS_TO: __dirname
   };
 
-  activeProcess = exec(`node "${n8nCliPath}" execute --id=P4bBNPzkRmQCXVHl`, { env: childEnv, cwd: __dirname }, (err, stdout, stderr) => {
+  activeProcess = exec(n8nCommand, { env: childEnv, cwd: __dirname }, (err, stdout, stderr) => {
     activeProcess = null;
     const combinedOutput = (stdout || '') + '\n' + (stderr || '');
     
