@@ -132,5 +132,8 @@ Configure the following variables in the **Variables** tab of your Express servi
 | :--- | :--- | :--- |
 | `PORT` | `3000` | Injected automatically by Railway to route HTTP traffic. |
 | `NODE_ENV` | `production` | Tells Node.js to run in production mode. |
-| `GROQ_API_KEY` | `gsk_...` | Groq API Key for Llama inference. |
-| `PAGESPEED_API_KEY` | `AIza...` | (Optional) PageSpeed API Key. |
+| `GROQ_API_KEY` | `gsk_...` | (Optional) Pre-injected Groq API Key. |
+| `PAGESPEED_API_KEY` | `AIza...` | (Optional) Pre-injected PageSpeed API Key. |
+
+> [!IMPORTANT]
+> **API Key Setup:** For security compliance, API keys are not stored or hardcoded in the source code. Upon deploying the dashboard, navigate to the **Configuration** tab in your browser and enter your **Groq API Key** and **PageSpeed API Key** directly in the form inputs, then click **Save Configuration** to sync them to the database.
