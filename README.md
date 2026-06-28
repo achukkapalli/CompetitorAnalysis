@@ -51,3 +51,4 @@ Open **[http://localhost:3000](http://localhost:3000)** in your web browser.
 
 ### 4. Workflow Visualizer (Optional)
 Open the local n8n editor at **[http://localhost:5678](http://localhost:5678)** to view or manually trigger nodes.
+http://localhost:5678/workflow/P4bBNPzkRmQCXVHl
