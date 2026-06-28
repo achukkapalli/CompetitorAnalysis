@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
@@ -105,6 +106,12 @@ return [{ json: {
 app.get('/api/config', (req, res) => {
   try {
     const config = getConfigFromWorkflow();
+    if (!config.groqApiKey && process.env.GROQ_API_KEY) {
+      config.groqApiKey = process.env.GROQ_API_KEY;
+    }
+    if (!config.pagespeedApiKey && process.env.PAGESPEED_API_KEY) {
+      config.pagespeedApiKey = process.env.PAGESPEED_API_KEY;
+    }
     res.json(config);
   } catch (e) {
     res.status(500).json({ error: e.message });
