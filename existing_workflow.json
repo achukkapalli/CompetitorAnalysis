@@ -1,0 +1,405 @@
+{
+  "id": "P4bBNPzkRmQCXVHl",
+  "name": "vidaXL - PR1 Competitor Analysis Report (10 Competitors)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Setup before running\n1. Create credential: HTTP Header Auth named 'Anthropic API Key' -> header name `x-api-key`, value = your Anthropic API key.\n2. Create an SMTP credential for the Send Email node (or swap for Gmail/Outlook node).\n3. Open 'Define Config' and check/replace placeholder URLs with verified ones - some are best-guess and may need updating (blog paths especially).\n4. Optional: add a free Google PageSpeed Insights API key in the config for higher rate limits.\n5. Anthropic's API is pay-per-token (no permanent free tier) - this workflow uses Haiku for the 10 per-competitor calls and Sonnet only once for the final report, to keep cost low (typically well under $1/run).",
+        "height": 380,
+        "width": 460
+      },
+      "name": "Setup Notes",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -16,
+        -96
+      ],
+      "id": "cb9d2725-da3f-462f-ae50-2293ef1e9db0"
+    },
+    {
+      "parameters": {
+        "content": "## Social media note\nInstagram/Facebook/LinkedIn block most unauthenticated scraping (login walls, JS rendering). This workflow attempts a best-effort public fetch and falls back to 'unavailable' when blocked - treat social numbers as directional, not authoritative. For reliable social benchmarking, consider a manual monthly check or a paid social analytics API later.",
+        "height": 260,
+        "width": 380
+      },
+      "name": "Social Scraping Caveat",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        912,
+        0
+      ],
+      "id": "5c06f0de-22d6-4263-b994-5687e7daaaca"
+    },
+    {
+      "parameters": {},
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        352
+      ],
+      "id": "13edc5f8-b47f-42f6-be45-0a2d3f932266"
+    },
+    {
+      "parameters": {
+        "jsCode": "const targetCompany = {\n  name: \"vidaXL\",\n  homepage: \"https://www.vidaxl.nl\",\n  blog: \"https://www.vidaxl.nl/blog\",\n  socials: {\n    instagram: \"https://www.instagram.com/vidaxl/\",\n    facebook: \"https://www.facebook.com/vidaXL/\",\n    linkedin: \"https://www.linkedin.com/company/vidaxl/\"\n  }\n};\n\n// 10 proposed EU home / garden / DIY competitors - Wayfair & IKEA enabled by default\nconst competitors = [\n  { name: \"Wayfair\", homepage: \"https://www.wayfair.de\", blog: \"https://www.wayfair.de/ideas-and-advice\", instagram: \"https://www.instagram.com/wayfair/\", enabled: true },\n  { name: \"IKEA\", homepage: \"https://www.ikea.com/nl/nl/\", blog: \"https://www.ikea.com/nl/nl/ideas/\", instagram: \"https://www.instagram.com/ikea/\", enabled: true },\n  { name: \"OTTO\", homepage: \"https://www.otto.de\", blog: \"https://www.otto.de/biorhythm/\", instagram: \"https://www.instagram.com/otto/\", enabled: false },\n  { name: \"Home24\", homepage: \"https://www.home24.de\", blog: \"https://www.home24.de/wohnberatung/\", instagram: \"https://www.instagram.com/home24/\", enabled: false },\n  { name: \"OBI\", homepage: \"https://www.obi.de\", blog: \"https://www.obi.de/ratgeber/\", instagram: \"https://www.instagram.com/obi_de/\", enabled: false },\n  { name: \"JYSK\", homepage: \"https://jysk.nl\", blog: \"https://jysk.nl/inspiratie\", instagram: \"https://www.instagram.com/jysk/\", enabled: false },\n  { name: \"Fonq\", homepage: \"https://www.fonq.nl\", blog: \"https://www.fonq.nl/inspiratie/\", instagram: \"https://www.instagram.com/fonq/\", enabled: false },\n  { name: \"Bauhaus\", homepage: \"https://www.bauhaus.info\", blog: \"https://www.bauhaus.info/ratgeber\", instagram: \"https://www.instagram.com/bauhaus_de/\", enabled: false },\n  { name: \"Kees Smit Tuinmeubelen\", homepage: \"https://www.keessmit.nl\", blog: \"https://www.keessmit.nl/inspiratie\", instagram: \"https://www.instagram.com/keessmit/\", enabled: false },\n  { name: \"ManoMano\", homepage: \"https://www.manomano.fr\", blog: \"https://www.manomano.fr/blog/\", instagram: \"https://www.instagram.com/manomano_fr/\", enabled: false }\n];\n\nconst analysisContext = \"vidaXL's PR1 Navigate & Search program covers five milestones: (1) Content Quality, (2) PDP Navigation, (3) Search Improvement, (4) PLP Improvements, and (5) AI-powered Guided Shopping Assistant. The program follows a hypothesis-driven MVP approach with gate decisions rather than strict sequential delivery.\";\n\nconst analyzerSystemPrompt = \"You are a senior e-commerce CRO and UX analyst performing a competitor analysis benchmarking. Respond with ONLY valid JSON, matching exactly this schema: {\\\"ux_assessment\\\": string, \\\"blog_assessment\\\": string, \\\"social_assessment\\\": string, \\\"key_gaps_vs_target\\\": [string], \\\"recommendations\\\": [{\\\"milestone\\\": string, \\\"recommendation\\\": string, \\\"effort\\\": \\\"low|medium|high\\\"}]}\";\n\nconst reportSystemPrompt = \"You are preparing an executive competitor analysis report. Output clean, email-ready semantic HTML only. Wrap the Executive Summary section inside a beautifully styled border box card: <div style=\\\"background-color: #f8f9fa; border-left: 4px solid #ff6600; padding: 20px; border-radius: 6px; margin-bottom: 25px; font-family: Arial, sans-serif;\\\"><h3 style=\\\"margin-top: 0; color: #111; font-size: 18px;\\\">Executive Summary</h3><p style=\\\"line-height: 1.6; color: #333; margin: 0; font-size: 14px;\\\">[summary text]</p></div>. You MUST include a dedicated section titled '<h2>Prioritized Action Plan for the Target Company</h2>' outlining specific gaps, website design improvements, and concrete actions for the target company (e.g. vidaXL) to close gaps vs competitors, grouped by the Navigate & Search program milestones. Style headers cleanly, use inline CSS colors matching target company brand, and do not use markdown, no html/head/body wrapper tags, no comments outside the HTML.\";\n\nreturn [{ json: {\n  targetCompany,\n  competitors,\n  analysisContext,\n  analyzerSystemPrompt,\n  reportSystemPrompt,\n  groqApiKey: \"\",\n  pagespeedApiKey: \"\"\n} }];"
+      },
+      "name": "Define Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        352
+      ],
+      "id": "d152cc14-233e-40be-af4b-90d43b242354"
+    },
+    {
+      "parameters": {
+        "jsCode": "const cfg = $input.first().json;\n\nasync function fetchText(url) {\n  try {\n    const res = await this.helpers.httpRequest({ method: 'GET', url, timeout: 10000, headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CompetitorBot/1.0)' } });\n    if (res instanceof Buffer) {\n      return res.toString('utf8');\n    }\n    if (typeof res === 'object') {\n      return JSON.stringify(res);\n    }\n    return String(res || '');\n  } catch (e) {\n    return '';\n  }\n}\n\nfunction extractSignals(html) {\n  if (typeof html !== 'string') {\n    html = String(html || '');\n  }\n  const titleMatch = html.match(/<title>(.*?)<\\/title>/i);\n  const metaDescMatch = html.match(/<meta[^>]*name=[\\\"']description[\\\"'][^>]*content=[\\\"']([^\\\"']*)[\\\"']/i);\n  const wordCount = html.replace(/<[^>]*>/g, ' ').split(/\\s+/).filter(Boolean).length;\n  const h1Count = (html.match(/<h1[\\s>]/gi) || []).length;\n  const h2Count = (html.match(/<h2[\\s>]/gi) || []).length;\n  const imgCount = (html.match(/<img[\\s>]/gi) || []).length;\n\n  const hasInstagram = /instagram\\.com\\/[a-zA-Z0-9_\\.]+/i.test(html);\n  const hasFacebook = /facebook\\.com\\/[a-zA-Z0-9_\\.]+/i.test(html);\n  const hasLinkedIn = /linkedin\\.com\\/company\\/[a-zA-Z0-9_\\.\\-]+/i.test(html);\n  const hasPinterest = /pinterest\\.com\\/[a-zA-Z0-9_\\.]+/i.test(html);\n  const hasYouTube = /youtube\\.com\\/(c\\/|user\\/|channel\\/)?[a-zA-Z0-9_\\.\\-]+/i.test(html);\n  const hasTwitter = /(twitter\\.com|x\\.com)\\/[a-zA-Z0-9_\\.]+/i.test(html);\n\n  return {\n    title: titleMatch ? titleMatch[1].trim() : null,\n    metaDescription: metaDescMatch ? metaDescMatch[1].trim() : null,\n    approxWordCount: wordCount,\n    h1Count, h2Count, imgCount,\n    socialLinks: {\n      instagram: hasInstagram,\n      facebook: hasFacebook,\n      linkedin: hasLinkedIn,\n      pinterest: hasPinterest,\n      youtube: hasYouTube,\n      twitter: hasTwitter\n    }\n  };\n}\n\nasync function getPageSpeed(url, apiKey) {\n  try {\n    const endpoint = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(url)}&category=PERFORMANCE&category=SEO&category=ACCESSIBILITY&category=BEST_PRACTICES${apiKey ? '&key=' + apiKey : ''}`;\n    const res = await this.helpers.httpRequest({ method: 'GET', url: endpoint, json: true, timeout: 25000 });\n    const cats = (res && res.lighthouseResult && res.lighthouseResult.categories) || {};\n    return {\n      performance: cats.performance ? Math.round(cats.performance.score * 100) : null,\n      seo: cats.seo ? Math.round(cats.seo.score * 100) : null,\n      accessibility: cats.accessibility ? Math.round(cats.accessibility.score * 100) : null,\n      bestPractices: cats['best-practices'] ? Math.round(cats['best-practices'].score * 100) : null\n    };\n  } catch (e) {\n    return { performance: null, seo: null, accessibility: null, bestPractices: null, error: String(e.message || e) };\n  }\n}\n\nconst homepageHtml = await fetchText.call(this, cfg.targetCompany.homepage);\nconst blogHtml = await fetchText.call(this, cfg.targetCompany.blog);\n\nconst targetSignals = {\n  homepage: extractSignals(homepageHtml),\n  blog: extractSignals(blogHtml),\n  pagespeed: await getPageSpeed.call(this, cfg.targetCompany.homepage, cfg.pagespeedApiKey)\n};\n\nreturn [{ json: {\n  targetSignals,\n  competitors: cfg.competitors,\n  analysisContext: cfg.analysisContext,\n  pagespeedApiKey: cfg.pagespeedApiKey\n} }];"
+      },
+      "name": "Fetch Target Baseline",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        464,
+        352
+      ],
+      "id": "5f634dbe-09b1-44fc-81c9-b99d4ab12240"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst enabledCompetitors = (input.competitors || []).filter(c => c.enabled !== false);\n\nreturn enabledCompetitors.map(c => ({\n  json: {\n    competitors: c,\n    targetSignals: input.targetSignals,\n    analysisContext: input.analysisContext,\n    pagespeedApiKey: input.pagespeedApiKey\n  }\n}));"
+      },
+      "name": "Split Out Competitors",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        688,
+        352
+      ],
+      "id": "d4f667b9-3c74-4542-b317-28c604224a69"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const data = $input.item.json;\nconst competitor = data.competitors;\nconst targetSignals = data.targetSignals;\nconst analysisContext = data.analysisContext;\nconst pagespeedApiKey = data.pagespeedApiKey;\n\nasync function fetchText(url) {\n  try {\n    const res = await this.helpers.httpRequest({ method: 'GET', url, timeout: 10000, headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CompetitorBot/1.0)' } });\n    if (res instanceof Buffer) {\n      return res.toString('utf8');\n    }\n    if (typeof res === 'object') {\n      return JSON.stringify(res);\n    }\n    return String(res || '');\n  } catch (e) {\n    return '';\n  }\n}\n\nfunction extractSignals(html) {\n  if (typeof html !== 'string') {\n    html = String(html || '');\n  }\n  const titleMatch = html.match(/<title>(.*?)<\\/title>/i);\n  const metaDescMatch = html.match(/<meta[^>]*name=[\\\"']description[\\\"'][^>]*content=[\\\"']([^\\\"']*)[\\\"']/i);\n  const wordCount = html.replace(/<[^>]*>/g, ' ').split(/\\s+/).filter(Boolean).length;\n  const h1Count = (html.match(/<h1[\\s>]/gi) || []).length;\n  const h2Count = (html.match(/<h2[\\s>]/gi) || []).length;\n  const imgCount = (html.match(/<img[\\s>]/gi) || []).length;\n\n  const hasInstagram = /instagram\\.com\\/[a-zA-Z0-9_\\.]+/i.test(html);\n  const hasFacebook = /facebook\\.com\\/[a-zA-Z0-9_\\.]+/i.test(html);\n  const hasLinkedIn = /linkedin\\.com\\/company\\/[a-zA-Z0-9_\\.\\-]+/i.test(html);\n  const hasPinterest = /pinterest\\.com\\/[a-zA-Z0-9_\\.]+/i.test(html);\n  const hasYouTube = /youtube\\.com\\/(c\\/|user\\/|channel\\/)?[a-zA-Z0-9_\\.\\-]+/i.test(html);\n  const hasTwitter = /(twitter\\.com|x\\.com)\\/[a-zA-Z0-9_\\.]+/i.test(html);\n\n  return {\n    title: titleMatch ? titleMatch[1].trim() : null,\n    metaDescription: metaDescMatch ? metaDescMatch[1].trim() : null,\n    approxWordCount: wordCount,\n    h1Count, h2Count, imgCount,\n    socialLinks: {\n      instagram: hasInstagram,\n      facebook: hasFacebook,\n      linkedin: hasLinkedIn,\n      pinterest: hasPinterest,\n      youtube: hasYouTube,\n      twitter: hasTwitter\n    }\n  };\n}\n\nasync function getPageSpeed(url, apiKey) {\n  try {\n    const endpoint = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(url)}&category=PERFORMANCE&category=SEO&category=ACCESSIBILITY&category=BEST_PRACTICES${apiKey ? '&key=' + apiKey : ''}`;\n    const res = await this.helpers.httpRequest({ method: 'GET', url: endpoint, json: true, timeout: 25000 });\n    const cats = (res && res.lighthouseResult && res.lighthouseResult.categories) || {};\n    return {\n      performance: cats.performance ? Math.round(cats.performance.score * 100) : null,\n      seo: cats.seo ? Math.round(cats.seo.score * 100) : null,\n      accessibility: cats.accessibility ? Math.round(cats.accessibility.score * 100) : null,\n      bestPractices: cats['best-practices'] ? Math.round(cats['best-practices'].score * 100) : null\n    };\n  } catch (e) {\n    return { performance: null, seo: null, accessibility: null, bestPractices: null, error: String(e.message || e) };\n  }\n}\n\nconst homepageHtml = await fetchText.call(this, competitor.homepage);\nconst blogHtml = await fetchText.call(this, competitor.blog);\n\nconst competitorSignals = {\n  homepage: extractSignals(homepageHtml),\n  blog: extractSignals(blogHtml),\n  pagespeed: await getPageSpeed.call(this, competitor.homepage, pagespeedApiKey)\n};\n\n// Spaced out 15 seconds to avoid Google PageSpeed and Groq TPM limits\nawait new Promise(resolve => setTimeout(resolve, 15000));\n\nreturn { json: {\n  competitorName: competitor.name,\n  competitorSignals,\n  targetSignals,\n  analysisContext\n} };"
+      },
+      "name": "Fetch Competitor Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        912,
+        352
+      ],
+      "id": "67c43180-82a8-411f-a4df-dc2227201e76"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Define Config').item.json.groqApiKey }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  model: \"llama-3.1-8b-instant\",\n  max_tokens: 800,\n  response_format: { type: \"json_object\" },\n  messages: [\n    {\n      role: \"system\",\n      content: $('Define Config').item.json.analyzerSystemPrompt + \" Target company goals & context: \" + $json.analysisContext\n    },\n    {\n      role: \"user\",\n      content: \"Target Company: \" + $('Define Config').item.json.targetCompany.name + \"\\nCompetitor: \" + $json.competitorName + \"\\n\\nCompetitor signals: \" + JSON.stringify($json.competitorSignals) + \"\\n\\nTarget baseline signals: \" + JSON.stringify($json.targetSignals) + \"\\n\\nCompare this competitor to the target company (\" + $('Define Config').item.json.targetCompany.name + \") across UX/site performance, blog content quality/cadence, and social presence. For the UX assessment, perform a clear analysis on how the competitor's webpage is designed. Detail their layout structure (e.g. hero section, item density, search placement), navigation elements (header menus, links), and visual patterns. Compare these layout choices to the target baseline company. Identify concrete, specific gaps and give actionable recommendations.\"\n    }\n  ]\n}) }}",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 15000
+            }
+          }
+        }
+      },
+      "name": "Groq - Analyze Competitor",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1120,
+        352
+      ],
+      "id": "aee8391f-4a79-46b4-a602-53b71daa8341",
+      "retryOnFail": true,
+      "maxRetries": 5,
+      "waitBetweenRetries": 15000
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const resp = $input.item.json;\nlet analysis;\ntry {\n  const text = (resp.choices && resp.choices[0] && resp.choices[0].message && resp.choices[0].message.content) || '{}';\n  analysis = JSON.parse(text);\n} catch (e) {\n  analysis = { error: 'Failed to parse AI response', raw: (resp.choices && resp.choices[0] && resp.choices[0].message && resp.choices[0].message.content) || '' };\n}\n\nconst prior = $('Fetch Competitor Data').item.json;\n\nreturn { json: {\n  competitorName: prior.competitorName,\n  analysis\n} };"
+      },
+      "name": "Parse Competitor Analysis",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1344,
+        352
+      ],
+      "id": "3e4d608b-5074-4a4b-91af-2cb83973d457"
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "competitorAnalyses",
+        "options": {}
+      },
+      "name": "Aggregate Competitor Analyses",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        1568,
+        352
+      ],
+      "id": "0c406d06-8938-4ec7-8e31-654b757cdd18"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Define Config').item.json.groqApiKey }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  model: \"llama-3.1-8b-instant\",\n  max_tokens: 1200,\n  messages: [\n    {\n      role: \"system\",\n      content: $('Define Config').item.json.reportSystemPrompt + \" Target company: \" + $('Define Config').item.json.targetCompany.name + \". Goals: \" + $('Define Config').item.json.analysisContext\n    },\n    {\n      role: \"user\",\n      content: \"Target Company Name: \" + $('Define Config').item.json.targetCompany.name + \"\\nTarget baseline signals: \" + JSON.stringify($('Fetch Target Baseline').item.json.targetSignals) + \"\\n\\nCompetitor analyses (selected competitors): \" + JSON.stringify($json.competitorAnalyses) + \"\\n\\nWrite an executive competitor analysis report comparing ONLY the selected competitors. The analyzed competitors are: \" + $json.competitorAnalyses.map(c => c.competitorName).join(', ') + \". IMPORTANT: DO NOT include, list, or reference any other competitors or brands in the comparison table, summary, patterns, or recommendations. Only use the data provided in the Competitor analyses payload above. Outline: 1) a short executive summary, 2) a comparison table (competitor | UX/performance score | blog cadence | social presence | top gap vs target), 3) cross-competitor patterns, 4) a dedicated and comprehensive section titled '<h2>Prioritized Action Plan for \" + $('Define Config').item.json.targetCompany.name + \"</h2>' listing concrete gaps of \" + $('Define Config').item.json.targetCompany.name + \" compared to the competitor benchmarks (specifically detailing layout density, spacing, search placement, menu navigation) and outlining the exact steps \" + $('Define Config').item.json.targetCompany.name + \" should take to address them. Group these recommendations by the 5 Navigate & Search program milestones, tagging each with Quick Win or Strategic Initiative.\"\n    }\n  ]\n}) }}"
+      },
+      "name": "Groq - Executive Report",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1792,
+        352
+      ],
+      "id": "48d0af32-c98d-4476-a11a-0f1b386a5a5c",
+      "retryOnFail": true,
+      "maxRetries": 5,
+      "waitBetweenRetries": 15000
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nconst html = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '<p>No report generated.</p>';\nconst today = new Date().toISOString().slice(0,10);\nconst targetName = $('Define Config').item.json.targetCompany.name;\n\nconst analyses = $('Aggregate Competitor Analyses').first().json.competitorAnalyses || [];\n\nif (analyses.length === 0) {\n  return [{ json: {\n    subject: `No Competitors Selected – ${targetName} Report`,\n    htmlBody: `<h1>${targetName} Competitor Analysis Report</h1><p style=\"color:#666\">Generated ${today}</p><div style=\"background-color: #fff3cd; border-left: 4px solid #856404; padding: 20px; border-radius: 6px; color: #856404; font-family: Arial, sans-serif; margin-top: 25px;\"><h3>No Competitors Selected</h3><p style=\"margin: 0; line-height: 1.5;\">You did not select any competitors for this benchmarking run. Please open the dashboard at <a href=\"http://localhost:3000\">http://localhost:3000</a>, check/select at least one competitor, and trigger the analysis scraper again.</p></div>`\n  } }];\n}\n\nconst competitorDetailsHtml = analyses.map(c => {\n  const a = c.analysis || {};\n  const gapsList = (a.key_gaps_vs_target || []).map(g => `<li>${g}</li>\\n`).join('');\n  const recsList = (a.recommendations || []).map(r => `\n    <tr>\n      <td style=\"padding: 6px; border: 1px solid #eee;\"><strong>${r.milestone}</strong></td>\n      <td style=\"padding: 6px; border: 1px solid #eee;\">${r.recommendation}</td>\n      <td style=\"padding: 6px; border: 1px solid #eee; text-align: center;\">\n        <span style=\"padding: 2px 6px; border-radius: 4px; font-size: 11px; background: ${r.effort === 'low' ? '#e2f9e1; color: #1e7e1c;' : r.effort === 'medium' ? '#fff3cd; color: #856404;' : '#f8d7da; color: #721c24;'}\">${r.effort}</span>\n      </td>\n    </tr>\n  `).join('');\n\n  return `\n    <div style=\"margin-top: 30px; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #fafafa; font-family: Arial, sans-serif;\">\n      <h3 style=\"margin-top: 0; color: #ff6600; border-bottom: 2px solid #ff6600; padding-bottom: 6px; font-size: 18px;\">${c.competitorName} Detailed Analysis</h3>\n      \n      <p style=\"font-size: 14px; line-height: 1.5; color: #333;\"><strong>UX & Performance Assessment:</strong><br/>${a.ux_assessment || 'N/A'}</p>\n      <p style=\"font-size: 14px; line-height: 1.5; color: #333;\"><strong>Blog Content & Cadence Assessment:</strong><br/>${a.blog_assessment || 'N/A'}</p>\n      <p style=\"font-size: 14px; line-height: 1.5; color: #333;\"><strong>Social Media Presence Assessment:</strong><br/>${a.social_assessment || 'N/A'}</p>\n      \n      <h4 style=\"margin-bottom: 8px; color: #333; font-size: 15px;\">Key Gaps vs. ${targetName}:</h4>\n      <ul style=\"margin-top: 0; padding-left: 20px; font-size: 14px; line-height: 1.5; color: #333;\">\n        ${gapsList || '<li>No significant gaps identified.</li>'}\n      </ul>\n      \n      <h4 style=\"margin-bottom: 8px; color: #333; font-size: 15px;\">Actionable Recommendations:</h4>\n      <table style=\"width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px;\">\n        <thead>\n          <tr style=\"background: #eee;\">\n            <th style=\"padding: 6px; border: 1px solid #ddd; text-align: left;\">Milestone</th>\n            <th style=\"padding: 6px; border: 1px solid #ddd; text-align: left;\">Recommendation</th>\n            <th style=\"padding: 6px; border: 1px solid #ddd; text-align: center; width: 80px;\">Effort</th>\n          </tr>\n        </thead>\n        <tbody>\n          ${recsList || '<tr><td colspan=\"3\" style=\"padding: 10px; text-align: center; color: #999;\">No recommendations.</td></tr>'}\n        </tbody>\n      </table>\n    </div>\n  `;\n}).join('');\n\nconst analyzedNames = analyses.map(c => c.competitorName).join(', ');\n\nreturn [{ json: {\n  subject: `${targetName} Competitor Analysis Report – ${today}`,\n  htmlBody: `<h1>${targetName} Competitor Analysis Report</h1><p style=\"color:#666\">Generated ${today} &middot; Benchmarked against analyzed competitors: <strong>${analyzedNames}</strong></p>${html}<hr style=\"margin-top: 40px; border: 0; border-top: 1px dashed #ccc;\"/><h2 style=\"color: #ff6600;\">Competitor Deep Dives</h2>${competitorDetailsHtml}`\n} }];"
+      },
+      "name": "Build Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        352
+      ],
+      "id": "53a95d0f-c3a8-493c-bdad-98013d60ddb7"
+    },
+    {
+      "parameters": {
+        "fromEmail": "aishwarya.chukkapalli@gmail.com",
+        "toEmail": "a.chukkapalli@vidaxl.com",
+        "subject": "={{$json.subject}}",
+        "html": "={{$json.htmlBody}}",
+        "options": {}
+      },
+      "name": "Send Report Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        2224,
+        352
+      ],
+      "id": "3ee1b4a7-ae4e-4a7a-b32b-dafe4e88497e",
+      "webhookId": "7e046172-f161-4f16-99fb-14dff13ee134",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\nconst htmlContent = item.htmlBody || '';\nreturn [{\n  json: {\n    fileName: 'competitor_analysis_report.html'\n  },\n  binary: {\n    data: {\n      data: Buffer.from(htmlContent).toString('base64'),\n      mimeType: 'text/html',\n      fileName: 'competitor_analysis_report.html'\n    }\n  }\n}];"
+      },
+      "name": "Convert to Binary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        550
+      ],
+      "id": "convertToBinary-unique-id-998"
+    },
+    {
+      "parameters": {
+        "fileName": "c:/Users/aishw/Documents/Competitor analysis agent/competitor_analysis_report.html",
+        "dataPropertyName": "data"
+      },
+      "name": "Write Report to File",
+      "type": "n8n-nodes-base.writeBinaryFile",
+      "typeVersion": 1,
+      "position": [
+        2200,
+        550
+      ],
+      "id": "writeReportToFile-unique-id-999"
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Define Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Define Config": {
+      "main": [
+        [
+          {
+            "node": "Fetch Target Baseline",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Target Baseline": {
+      "main": [
+        [
+          {
+            "node": "Split Out Competitors",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out Competitors": {
+      "main": [
+        [
+          {
+            "node": "Fetch Competitor Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Competitor Data": {
+      "main": [
+        [
+          {
+            "node": "Groq - Analyze Competitor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq - Analyze Competitor": {
+      "main": [
+        [
+          {
+            "node": "Parse Competitor Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Competitor Analysis": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Competitor Analyses",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Competitor Analyses": {
+      "main": [
+        [
+          {
+            "node": "Groq - Executive Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq - Executive Report": {
+      "main": [
+        [
+          {
+            "node": "Build Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Email": {
+      "main": [
+        [
+          {
+            "node": "Convert to Binary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert to Binary": {
+      "main": [
+        [
+          {
+            "node": "Write Report to File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Report to File": {
+      "main": [
+        [
+          {
+            "node": "Send Report Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": 0,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "staticData": null
+}

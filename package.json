@@ -1,0 +1,13 @@
+{
+  "name": "competitor-analysis-dashboard",
+  "version": "1.0.0",
+  "description": "Dashboard for vidaXL Competitor Analysis n8n Workflow",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2"
+  }
+}

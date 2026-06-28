@@ -1,0 +1,9 @@
+node_modules/
+.npm/
+npm-debug.log
+.DS_Store
+.gemini/
+.agents/
+.system_generated/
+reports/report_*.html
+competitor_analysis_report.html
