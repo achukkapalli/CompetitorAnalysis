@@ -206,6 +206,29 @@ app.post('/api/run', (req, res) => {
             const archivePath = path.join(reportsDir, `report_${timestamp}.html`);
             fs.writeFileSync(archivePath, htmlBody, 'utf8');
             console.log(`Archived new report to: ${archivePath}`);
+
+            // Extract and save signals to reports/signals.json
+            const fetchCompData = runData?.['Fetch Competitor Data'];
+            if (fetchCompData && fetchCompData.length > 0) {
+              const items = [];
+              fetchCompData.forEach(run => {
+                if (run?.data?.main?.[0]) {
+                  run.data.main[0].forEach(item => {
+                    if (item?.json) {
+                      items.push({
+                        competitorName: item.json.competitorName,
+                        signals: item.json.competitorSignals
+                      });
+                    }
+                  });
+                }
+              });
+              if (items.length > 0) {
+                const signalsPath = path.join(reportsDir, 'signals.json');
+                fs.writeFileSync(signalsPath, JSON.stringify(items, null, 2), 'utf8');
+                console.log('Successfully saved signals.json');
+              }
+            }
             return;
           }
         }
@@ -227,73 +250,18 @@ app.get('/api/status', (req, res) => {
   res.json({ running: !!activeProcess });
 });
 
-// API: Get latest extracted signals from task logs
+// API: Get latest extracted signals
 app.get('/api/signals', (req, res) => {
-  const tasksDir = 'C:\\Users\\aishw\\.gemini\\antigravity-ide\\brain\\299cbd38-a966-42ad-b729-ae44ac5eadd7\\.system_generated\\tasks';
-  if (!fs.existsSync(tasksDir)) {
-    return res.json([]);
-  }
-
-  try {
-    const files = fs.readdirSync(tasksDir)
-      .filter(f => f.startsWith('task-') && f.endsWith('.log'))
-      .map(f => {
-        const filePath = path.join(tasksDir, f);
-        return {
-          filename: f,
-          path: filePath,
-          time: fs.statSync(filePath).mtime
-        };
-      })
-      .sort((a, b) => b.time - a.time);
-
-    if (files.length === 0) {
-      return res.json([]);
+  const signalsPath = path.join(reportsDir, 'signals.json');
+  if (fs.existsSync(signalsPath)) {
+    try {
+      const content = fs.readFileSync(signalsPath, 'utf8');
+      return res.json(JSON.parse(content));
+    } catch (e) {
+      console.error('Error reading signals.json:', e);
     }
-
-    // Try reading logs from newest to oldest until we find one with n8n execution data
-    for (const file of files) {
-      try {
-        const content = fs.readFileSync(file.path, 'utf8');
-        const startIndex = content.indexOf('{');
-        const lastIndex = content.lastIndexOf('}');
-        
-        if (startIndex !== -1 && lastIndex !== -1 && lastIndex > startIndex) {
-          const jsonText = content.substring(startIndex, lastIndex + 1);
-          const data = JSON.parse(jsonText);
-          
-          const runData = data?.data?.resultData?.runData;
-          const fetchCompData = runData?.['Fetch Competitor Data'];
-          
-          if (fetchCompData && fetchCompData.length > 0) {
-            const items = [];
-            fetchCompData.forEach(run => {
-              if (run?.data?.main?.[0]) {
-                run.data.main[0].forEach(item => {
-                  if (item?.json) {
-                    items.push({
-                      competitorName: item.json.competitorName,
-                      signals: item.json.competitorSignals
-                    });
-                  }
-                });
-              }
-            });
-            
-            if (items.length > 0) {
-              return res.json(items);
-            }
-          }
-        }
-      } catch (innerErr) {
-        // Skip corrupted or non-n8n logs
-      }
-    }
-    
-    res.json([]);
-  } catch (e) {
-    res.status(500).json({ error: e.message });
   }
+  res.json([]);
 });
 
 // Fallback to index.html for SPA routes
